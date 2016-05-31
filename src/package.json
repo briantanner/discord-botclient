@@ -1,0 +1,33 @@
+{
+  "name": "Discord-BotClient",
+  "productName": "Discord-BotClient",
+  "version": "0.3.0",
+  "homepage": "https://github.com/briantanner/Discord-BotClient",
+  "author": {
+    "name": "Brian Tanner",
+    "email": "brian@tanner.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/briantanner/Discord-BotClient.git"
+  },
+  "bugs": {
+    "url": "https://github.com/briantanner/Discord-BotClient/issues"
+  },
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "app": "electron index.js"
+  },
+  "dependencies": {
+    "discord.js": "^7.0.0",
+    "dotenv": "^2.0.0",
+    "getenv": "^0.6.0",
+    "moment": "^2.11.2",
+    "nedb": "^1.8.0",
+    "underscore": "^1.6.0"
+  },
+  "devDependencies": {
+    "electron-prebuilt": "^0.37.3"
+  }
+}
