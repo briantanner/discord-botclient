@@ -19,7 +19,7 @@
     "start": "electron index.js"
   },
   "dependencies": {
-    "discord.js": "^7.0.0",
+    "discord.js": "^8.0.0",
     "dotenv": "^2.0.0",
     "getenv": "^0.6.0",
     "moment": "^2.11.2",
