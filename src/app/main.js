@@ -158,7 +158,7 @@ class Main {
     msg.author.roles = msg.channel.server.rolesOfUser(msg.author);
     msg.author.roles = msg.author.roles.map(role => {
       role = _.clone(role);
-      role.color = role.colorAsHex();
+      role.color = role.colorAsHex() === '#000000' ? '#fefefe' : role.colorAsHex();
       return role;
     });
     
