@@ -11,7 +11,7 @@ This is a client for discord that uses [Electron](https://electron.atom.io) and 
 
 To install Discord Bot Client, either clone this repo or download and extract the zip file: 
 
-`git clone git@github.com:briantanner/discord-botclient.git`
+`git clone https://github.com/briantanner/discord-botclient.git`
 
 Run `npm install` to get dependencies.
 
