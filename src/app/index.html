@@ -11,6 +11,7 @@
     <div ng-controller="MainController as main">
       <div ng-model="servers" class="server-list">
         <h3>Servers</h3>
+        <div class="listContainer">
         <ul>
           <li ng-repeat="(id, server) in servers" ng-click="activateServer(server.id)">
             <span data-id="{{server.id}}">
@@ -18,10 +19,12 @@
             </span>
           </li>
         </ul>
+        </div>
       </div>
       <div class="server" ng-show="activeServer">
         <div ng-model="activeServer.channels" class="channel-list">
           <h3>Channels</h3>
+          <div class="listContainer">
           <ul>
             <li ng-repeat="(id, channel) in activeServer.channels" ng-click="activateChannel(channel)">
               <span data-id="{{channel.id}}">
@@ -29,6 +32,7 @@
               </span>
             </li>
           </ul>
+          </div>
         </div>
         <div class="channel" ng-show="activeChannel">
           <h4>#{{activeChannel.name}}</h4>

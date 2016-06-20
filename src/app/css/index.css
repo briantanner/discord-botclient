@@ -76,3 +76,8 @@ ul {
   border: solid #222 1px;
   box-shadow: inset 0 0 2px rgba(0,0,0,0.4);
 }
+
+.listContainer {
+  overflow-y: scroll;
+  max-height: 500px;
+}
