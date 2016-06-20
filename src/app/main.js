@@ -123,6 +123,9 @@ class Main {
       if (channel.type !== 'text') {
         return;
       }
+
+      // ignore channels the user doesn't have permissions to read
+      if (!channel.permissionsOf(this.bot.user).serialize().readMessages) return;
       
       _channels[channel.id] = _.clone(channel);
       

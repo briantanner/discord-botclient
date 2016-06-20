@@ -122,10 +122,13 @@ function MainController($scope) {
   
   ipcRenderer.on('server-create', function (event, server) {
     $scope.servers[server.id] = server;
-    
-    _.each(server.channels, channel => {
+
+    // sort channels by position
+    server.channels = _.sortBy(server.channels, ch => ch.position);
+
+    for (let channel of server.channels) {
       ipcRenderer.on(channel.id, addMessage);
-    });
+    }
     
     $scope.$apply();
   });
