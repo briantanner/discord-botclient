@@ -1,5 +1,10 @@
 const _ = require('underscore');
-const ipcRenderer = require('electron').ipcRenderer;
+const path = require('path');
+const electron = require('electron');
+const remote = electron.remote
+const ipcRenderer = electron.ipcRenderer;
+
+const config = remote.app.config;
 
 let main = angular.module('mainApp', ['ngSanitize', 'scrollglue']);
 
@@ -7,7 +12,7 @@ main.controller('MainController', ['$scope', MainController]);
 main.controller('TokenController', ['$scope', TokenController]);
 
 function MainController($scope) {
-  $scope.title = "Grepolis Discord";
+  $scope.title = "Discord Bot Client";
   $scope.servers = {};
   $scope.message = "";
   $scope.messages = {};
@@ -19,6 +24,10 @@ function MainController($scope) {
   $scope.keyup = keyup;
   $scope.typing = false;
   
+  /**
+   * Handle keyboard events
+   * @param  {Object} $event key event
+   */
   function keyup($event) {
     let ignored = [9,16,17,18,19,20,20,27,33,34,35,36,37,38,39,40,45,46,91,92,93];
     
@@ -26,6 +35,7 @@ function MainController($scope) {
       return;
     }
     
+    // careful here...
     if ($scope.message === null || $scope.message.length === 0) {
       typing('stop');
       return;
@@ -37,26 +47,37 @@ function MainController($scope) {
       return;
     }
     
+    // careful here..
     if (!$scope.typing) {
-      $scope.typing = true;
       typing('start');
+
+      // stop typing after 3 second
       setTimeout(function() {
         typing('stop');
-      }, 1000);
+      }, 3000);
     }
   }
   
+  /**
+   * Add a message to the client
+   * @param {Object} event   ipc event
+   * @param {Object} message message object
+   */
   function addMessage(event, message) {
     if (!$scope.messages[message.channel]) {
       $scope.messages[message.channel] = [];
     }
     
-    if (_.isArray(message)) {
+    // used when adding messages in bulk
+    if (message instanceof Array) {
       let sample = _.sample(message),
           messages = $scope.messages[sample.channel] || [];
       
+      // additional message formatting
       message = message.map(msg => {
+        // newline to break tag
         msg.cleanContent = msg.cleanContent.replace(/(?:\r\n|\r|\n)/g, '<br />');
+        // set role color
         msg.author.color = msg.author.roles && msg.author.roles[0] ? 
           msg.author.roles[0].color : '#efefef';
 
@@ -71,11 +92,13 @@ function MainController($scope) {
       return;
     }
     
+    // set role color
     message.author.color = message.author.roles && message.author.roles[0] ? 
           message.author.roles[0].color : '#efefef';
     
     $scope.messages[message.channel].push(message);
     
+    // only keep 100 messages
     if ($scope.messages[message.channel].length > 100) {
       $scope.messages[message.channel] = $scope.messages[message.channel].slice(-100);
     }
@@ -83,6 +106,9 @@ function MainController($scope) {
     $scope.$apply();
   }
   
+  /**
+   * Send a message
+   */
   function sendMessage() {
     ipcRenderer.send($scope.activeChannel.id, {
       type: 'message',
@@ -92,6 +118,13 @@ function MainController($scope) {
     $scope.message = "";
   }
   
+  /**
+   * Send the typing indicator
+   * Caution: if this goes bad and results in excess typing calls to the api,
+   *   it could result in an IP ban. Don't mess this up.
+   * 
+   * @param  {String} action start/stop
+   */
   function typing(action) {
     $scope.typing = (action === 'start') ? true : false;
     
@@ -145,7 +178,7 @@ function MainController($scope) {
 }
 
 function TokenController($scope) {
-  $scope.token = "";
+  $scope.token = config.token || "";
   $scope.saveToken = saveToken;
   
   function saveToken() {

@@ -2,14 +2,13 @@
 
 const fs = require('fs');
 const path = require('path');
-const electron = require('electron');
-const ipcMain = require('electron').ipcMain;
 const moment = require('moment');
-const _ = require('underscore');
 const Datastore = require('nedb');
-const app = electron.app;
+const electron = require('electron');
 const BrowserWindow = electron.BrowserWindow;
-const Menu = require('electron').Menu;
+const ipcMain = electron.ipcMain;
+const app = electron.app;
+const Menu = electron.Menu;
 const appMenu = require('./appMenu')(app);
 
 let main;
@@ -17,9 +16,10 @@ let main;
 class Main {
   
   constructor(bot) {
-    this.mainWindow = null;
     this.bot = bot;
+    this.mainWindow = null;
     this.activeChannel = null;
+    this.retries = 0;
     
     // debug: print userData path so we know where data files are being stored locally
     console.log(app.getPath('userData'));
@@ -29,6 +29,8 @@ class Main {
       filename: path.join(app.getPath('userData'), 'config.db'),
       autoload: true
     });
+
+    app.config = {};
     
     // App event handlers
     app.on('ready', this.login.bind(this));
@@ -47,7 +49,8 @@ class Main {
     
     // Bot event handlers
     bot.on('ready', this.onReady.bind(this));
-    bot.on('disconnected', this.login.bind(this));
+    bot.on('error', this.onError.bind(this));
+    bot.on('disconnected', this.onDisconnect.bind(this));
     bot.on('message', this.onMessage.bind(this));
     bot.on('serverCreated', this.createServer.bind(this));
     bot.on('serverDeleted', this.deleteServer.bind(this));
@@ -72,13 +75,51 @@ class Main {
       }
       
       this.token = doc.token;
-      
-      this.bot.loginWithToken(this.token)
-        .then(this.createWindow.bind(this))
-        .catch(err => {
-          console.log(err);
-        });
+      this.bot.loginWithToken(this.token).then(() => {
+        if (!this.mainWindow) {
+          this.createWindow();
+        }
+      }).catch(err => console.log(err));
     });
+  }
+
+  /**
+   * Client ready event handler
+   */
+  onReady() {
+    // load servers
+    this.bot.servers.forEach(server => {
+      this.createServer(server);
+    });
+  }
+
+  /**
+   * Client error event handler
+   * @param  {Object} err Error
+   */
+  onError(err) {
+    console.error(err);
+  }
+
+  /**
+   * Client disconnect event handler
+   */
+  onDisconnect() {
+    // retry 3 times
+    if (this.retries >= 3) {
+      this.retries = 0;
+      return this.createTokenWindow();
+    }
+
+    this.retries++;
+
+    // debug
+    console.log(`Attempting to reconnect... ${this.retries}`);
+
+    // respect reconnect rate limit of 5s
+    setTimeout(function() {
+      this.login();
+    }.bind(this), 5000);
   }
   
   /**
@@ -87,9 +128,20 @@ class Main {
    * @param  {String} token token entered by the user
    */
   saveToken(event, token) {
-    this.config.update({}, {token: token}, {upsert: true}, (err, n) => {
+    let callback = err => {
       this.login();
-      this.tokenWindow.close();
+      if (this.tokenWindow) this.tokenWindow.close();
+    };
+
+    this.config.findOne({}, (err, doc) => {
+      if (!doc) {
+        app.config = {token};
+        this.config.insert({token}, callback);
+      } else {
+        doc.token = token;
+        app.config = doc;
+        this.config.update({ _id: doc._id }, doc, callback);
+      }
     });
   }
   
@@ -127,38 +179,28 @@ class Main {
   }
   
   /**
-   * Bot ready event handler
-   */
-  onReady() {
-    // load servers
-    this.bot.servers.forEach(server => {
-      this.createServer(server);
-    });
-  }
-  
-  /**
    * Register servers with the client
    * @param  {Object} server discord.js server resolvable
    */
   createServer(server) {
     // clone server to prevent modification of the discord.js servers cache
-    let _server = _.clone(server),
+    let _server = Object.assign({}, server),
         _channels = {};
     
-    server.channels.forEach(channel => {
+    for (let channel of server.channels) {
       if (channel.type !== 'text') {
-        return;
+        continue;
       }
 
       // ignore channels the user doesn't have permissions to read
-      if (!channel.permissionsOf(this.bot.user).serialize().readMessages) return;
+      if (!channel.permissionsOf(this.bot.user).serialize().readMessages) continue;
       
-      // cone channel to prevent modification of the discord.js channels cache
-      _channels[channel.id] = _.clone(channel);
+      // clone channel to prevent modification of the discord.js channels cache
+      _channels[channel.id] = Object.assign({}, channel);
       
       // register an ipc listener for this channel
       ipcMain.on(channel.id, this.sendCommand.bind(this, _channels[channel.id]));
-    });
+    }
     
     _server.channels = _channels;
     
@@ -202,7 +244,7 @@ class Main {
    * @return {Object}         the message object to send to the client.
    */
   formatMessage(message) {
-    let msg = _.clone(message);
+    let msg = Object.assign({}, message);
     
     // we don't need this reference
     delete msg.client;
@@ -215,16 +257,23 @@ class Main {
 
     // map role colors as hex
     msg.author.roles = msg.author.roles.map(role => {
-      role = _.clone(role);
-      role.color = role.colorAsHex() === '#000000' ? '#fefefe' : role.colorAsHex();
-      return role;
+      // clone role to so there's no reference overwrites
+      let _role = Object.assign({}, role);
+      _role.color = role.colorAsHex() === '#000000' ? '#fefefe' : role.colorAsHex();
+      return _role;
     });
     
     // we only need the channel id, and the object contains circular references
     msg.channel = msg.channel.id;
 
     // pick the keys we need and don't return circular references
-    msg.author = _.pick(msg.author, ['id', 'username', 'discriminator', 'avatar', 'roles' ]);
+    msg.author = {
+      id: msg.author.id,
+      username: msg.author.username,
+      discriminator: msg.author.discriminator,
+      avatar: msg.author.avatar,
+      roles: msg.author.roles
+    };
     
     return msg;
   }
@@ -253,6 +302,9 @@ class Main {
    * @param  {Object} msg discord.js message resolvable
    */
   onMessage(msg) {
+    // ignore if client hasn't loaded yet
+    if (!this.mainWindow) return;
+
     // ignore messages messages not in the active channel
     if (this.activeChannel && this.activeChannel.id !== msg.channel.id) {
       return;
@@ -275,9 +327,11 @@ class Main {
     }
     
     switch (cmd.type) {
+      // send message to discord
       case 'message':
         this.bot.sendMessage(channel.id, cmd.message);
         break;
+      // send typing status, see caution on the client-side
       case 'typing':
         if (cmd.action === 'start') {
           this.bot.startTyping(cmd.channel.id);
@@ -285,6 +339,7 @@ class Main {
           this.bot.stopTyping(cmd.channel.id);
         }
         break;
+      // idk why this is duplicated
       default:
         this.bot.sendMessage(channel.id, cmd.message);
         break;
