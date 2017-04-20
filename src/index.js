@@ -1,6 +1,5 @@
-const Discord = require('discord.js');
+const eris = require('eris');
 const app = require('./app/main');
-const bot = new Discord.Client();
 
 // start electron app
-app(bot);
+app(eris);
