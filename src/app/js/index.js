@@ -1,7 +1,7 @@
 const _ = require('underscore');
 const path = require('path');
 const electron = require('electron');
-const remote = electron.remote
+const remote = electron.remote;
 const ipcRenderer = electron.ipcRenderer;
 
 const config = remote.app.config;
@@ -76,7 +76,7 @@ function MainController($scope) {
       // additional message formatting
       message = message.map(msg => {
         // newline to break tag
-        msg.cleanContent = msg.cleanContent.replace(/(?:\r\n|\r|\n)/g, '<br />');
+        msg.cleanContent = msg.content.replace(/(?:\r\n|\r|\n)/g, '<br />');
         // set role color
         msg.author.color = msg.author.roles && msg.author.roles[0] ? 
           msg.author.roles[0].color : '#efefef';

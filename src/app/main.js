@@ -15,8 +15,8 @@ let main;
 
 class Main {
   
-  constructor(bot) {
-    this.bot = bot;
+  constructor(eris) {
+    this.eris = eris;
     this.mainWindow = null;
     this.activeChannel = null;
     this.retries = 0;
@@ -47,18 +47,20 @@ class Main {
       }
     });
     
-    // Bot event handlers
-    bot.on('ready', this.onReady.bind(this));
-    bot.on('error', this.onError.bind(this));
-    bot.on('disconnected', this.onDisconnect.bind(this));
-    bot.on('message', this.onMessage.bind(this));
-    bot.on('serverCreated', this.createServer.bind(this));
-    bot.on('serverDeleted', this.deleteServer.bind(this));
-    bot.on('channelCreated', this.createChannel.bind(this));
-    bot.on('channelDeleted', this.deleteChannel.bind(this));
-    
     // Renderer event handlers
     ipcMain.on('activateChannel', this.activateChannel.bind(this));
+  }
+
+  bindBot() {
+    // Bot event handlers
+    this.bot.on('ready', this.onReady.bind(this));
+    this.bot.on('error', this.onError.bind(this));
+    this.bot.on('disconnected', this.onDisconnect.bind(this));
+    this.bot.on('message', this.onMessage.bind(this));
+    this.bot.on('serverCreated', this.createServer.bind(this));
+    this.bot.on('serverDeleted', this.deleteServer.bind(this));
+    this.bot.on('channelCreated', this.createChannel.bind(this));
+    this.bot.on('channelDeleted', this.deleteChannel.bind(this));
   }
   
   get app() {
@@ -75,7 +77,9 @@ class Main {
       }
       
       this.token = doc.token;
-      this.bot.loginWithToken(this.token).then(() => {
+      this.bot = new this.eris(this.token);
+      this.bindBot();
+      this.bot.connect().then(() => {
         if (!this.mainWindow) {
           this.createWindow();
         }
@@ -87,8 +91,10 @@ class Main {
    * Client ready event handler
    */
   onReady() {
+    console.log("Ready");
+    console.log(this.bot.guilds.size);
     // load servers
-    this.bot.servers.forEach(server => {
+    this.bot.guilds.forEach(server => {
       this.createServer(server);
     });
   }
@@ -188,14 +194,15 @@ class Main {
         _channels = {};
     
     for (let channel of server.channels) {
-      if (channel.type !== 'text') {
+      channel = channel[1];
+      if (channel.type != 0) {
         continue;
       }
 
       // ignore channels the user doesn't have permissions to read
-      if (!channel.permissionsOf(this.bot.user).serialize().readMessages) continue;
+      if (!channel.permissionsOf(this.bot.user.id).has("readMessages")) continue;
       
-      // clone channel to prevent modification of the discord.js channels cache
+      // clone channel to prevent modification of the eris channels cache
       _channels[channel.id] = Object.assign({}, channel);
       
       // register an ipc listener for this channel
@@ -251,17 +258,20 @@ class Main {
     
     // format the timestamp for display
     msg.timestamp = moment.unix(msg.timestamp / 1000).format('hh:mm:ss a');
-    
-    // get roles of author
-    msg.author.roles = msg.channel.server.rolesOfUser(msg.author);
 
-    // map role colors as hex
-    msg.author.roles = msg.author.roles.map(role => {
-      // clone role to so there's no reference overwrites
-      let _role = Object.assign({}, role);
-      _role.color = role.colorAsHex() === '#000000' ? '#fefefe' : role.colorAsHex();
-      return _role;
-    });
+    if (msg.member) {
+      // map role colors as hex
+      msg.author.roles = msg.member.roles.map(roleID => {
+        // clone role to so there's no reference overwrites
+        let role = msg.channel.guild.roles.get(roleID);
+        let _role = Object.assign({}, role);
+        let roleColourHex = `#${parseInt(role.color.toString(), 16)}`;
+        _role.color = roleColourHex === '#000000' ? '#fefefe' : roleColourHex;
+        return _role;
+      });
+    } else {
+      msg.author.roles = [];
+    }
     
     // we only need the channel id, and the object contains circular references
     msg.channel = msg.channel.id;
@@ -286,7 +296,7 @@ class Main {
   activateChannel(event, channel) {
     this.activeChannel = channel;
     // get last 50 messages for this channel
-    this.bot.getChannelLogs(channel.id, 50)
+    this.bot.getMessages(channel.id, 50)
       .then(messages => {
         // format the messages so they can be sent through ipc without circular references
         let _messages = messages.map(this.formatMessage);
@@ -329,19 +339,17 @@ class Main {
     switch (cmd.type) {
       // send message to discord
       case 'message':
-        this.bot.sendMessage(channel.id, cmd.message);
+        this.bot.createMessage(channel.id, cmd.message);
         break;
       // send typing status, see caution on the client-side
       case 'typing':
         if (cmd.action === 'start') {
-          this.bot.startTyping(cmd.channel.id);
-        } else {
-          this.bot.stopTyping(cmd.channel.id);
+          this.bot.guilds[this.bot.channelGuildMap[cmd.channel.id]].channels.get(cmd.channel.id).sendTyping();
         }
         break;
       // idk why this is duplicated
       default:
-        this.bot.sendMessage(channel.id, cmd.message);
+        this.bot.createMessage(channel.id, cmd.message);
         break;
     }
   }
