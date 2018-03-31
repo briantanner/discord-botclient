@@ -67,42 +67,44 @@ function MainController($scope) {
     if (!$scope.messages[message.channel]) {
       $scope.messages[message.channel] = [];
     }
-    
+
     // used when adding messages in bulk
     if (message instanceof Array) {
       let sample = _.sample(message),
-          messages = $scope.messages[sample.channel] || [];
-      
+        messages = $scope.messages[sample.channel] || [];
+
       // additional message formatting
       message = message.map(msg => {
         // newline to break tag
         msg.cleanContent = msg.content.replace(/(?:\r\n|\r|\n)/g, '<br />');
         // set role color
-        msg.author.color = msg.author.roles && msg.author.roles[0] ? 
+        msg.author.color = msg.author.roles && msg.author.roles[0] ?
           msg.author.roles[0].color : '#efefef';
 
         return msg;
       });
-      
+
       messages = message.concat(messages);
-      
+
       $scope.messages[sample.channel] = messages;
       $scope.$apply();
-      
+
       return;
     }
-    
+
+    message.cleanContent = message.content.replace(/(?:\r\n|\r|\n)/g, '<br />');
+
     // set role color
-    message.author.color = message.author.roles && message.author.roles[0] ? 
-          message.author.roles[0].color : '#efefef';
-    
+    message.author.color = message.author.roles && message.author.roles[0] ?
+      message.author.roles[0].color : '#efefef';
+
     $scope.messages[message.channel].push(message);
-    
+
     // only keep 100 messages
     if ($scope.messages[message.channel].length > 100) {
       $scope.messages[message.channel] = $scope.messages[message.channel].slice(-100);
     }
-    
+
     $scope.$apply();
   }
   
