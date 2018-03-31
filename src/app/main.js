@@ -56,7 +56,7 @@ class Main {
     this.bot.on('ready', this.onReady.bind(this));
     this.bot.on('error', this.onError.bind(this));
     this.bot.on('disconnected', this.onDisconnect.bind(this));
-    this.bot.on('message', this.onMessage.bind(this));
+    this.bot.on('messageCreate', this.onMessage.bind(this));
     this.bot.on('serverCreated', this.createServer.bind(this));
     this.bot.on('serverDeleted', this.deleteServer.bind(this));
     this.bot.on('channelCreated', this.createChannel.bind(this));
@@ -344,7 +344,7 @@ class Main {
       // send typing status, see caution on the client-side
       case 'typing':
         if (cmd.action === 'start') {
-          this.bot.guilds[this.bot.channelGuildMap[cmd.channel.id]].channels.get(cmd.channel.id).sendTyping();
+          this.bot.guilds.get(this.bot.channelGuildMap[cmd.channel.id]).channels.get(cmd.channel.id).sendTyping();
         }
         break;
       // idk why this is duplicated
