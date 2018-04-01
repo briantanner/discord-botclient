@@ -14,13 +14,13 @@ const appMenu = require('./appMenu')(app);
 let main;
 
 class Main {
-  
+
   constructor(eris) {
     this.eris = eris;
     this.mainWindow = null;
     this.activeChannel = null;
     this.retries = 0;
-    
+
     // debug: print userData path so we know where data files are being stored locally
     console.log(app.getPath('userData'));
 
@@ -29,9 +29,9 @@ class Main {
       filename: path.join(app.getPath('userData'), 'config.db'),
       autoload: true
     });
-
-    app.config = {};
     
+    app.config = {};
+
     // App event handlers
     app.on('ready', this.login.bind(this));
 
@@ -46,7 +46,7 @@ class Main {
         this.createWindow();
       }
     });
-    
+
     // Renderer event handlers
     ipcMain.on('activateChannel', this.activateChannel.bind(this));
   }
@@ -55,18 +55,18 @@ class Main {
     // Bot event handlers
     this.bot.on('ready', this.onReady.bind(this));
     this.bot.on('error', this.onError.bind(this));
-    this.bot.on('disconnected', this.onDisconnect.bind(this));
+    this.bot.on('disconnect', this.onDisconnect.bind(this));
     this.bot.on('messageCreate', this.onMessage.bind(this));
-    this.bot.on('serverCreated', this.createServer.bind(this));
-    this.bot.on('serverDeleted', this.deleteServer.bind(this));
-    this.bot.on('channelCreated', this.createChannel.bind(this));
-    this.bot.on('channelDeleted', this.deleteChannel.bind(this));
+    this.bot.on('guildCreate', this.createServer.bind(this));
+    this.bot.on('guildDelete', this.deleteServer.bind(this));
+    this.bot.on('channelCreate', this.createChannel.bind(this));
+    this.bot.on('channelDelete', this.deleteChannel.bind(this));
   }
-  
+
   get app() {
     return app;
   }
-  
+
   /**
    * Login with token or show the token window
    */
@@ -75,7 +75,7 @@ class Main {
       if (!doc || !doc.token) {
         return this.createTokenWindow();
       }
-      
+
       this.token = doc.token;
       this.bot = new this.eris(this.token);
       this.bindBot();
@@ -123,11 +123,11 @@ class Main {
     console.log(`Attempting to reconnect... ${this.retries}`);
 
     // respect reconnect rate limit of 5s
-    setTimeout(function() {
+    setTimeout(function () {
       this.login();
     }.bind(this), 5000);
   }
-  
+
   /**
    * Save the token for logging in
    * @param  {Object} event ipc event object
@@ -141,8 +141,8 @@ class Main {
 
     this.config.findOne({}, (err, doc) => {
       if (!doc) {
-        app.config = {token};
-        this.config.insert({token}, callback);
+        app.config = { token };
+        this.config.insert({ token }, callback);
       } else {
         doc.token = token;
         app.config = doc;
@@ -150,25 +150,25 @@ class Main {
       }
     });
   }
-  
+
   /**
    * Create the token window
    */
   createTokenWindow() {
-    this.tokenWindow = new BrowserWindow({width: 650, height: 100});
+    this.tokenWindow = new BrowserWindow({ width: 650, height: 100 });
     this.tokenWindow.loadURL('file://' + __dirname + '/token.html');
 
     Menu.setApplicationMenu(Menu.buildFromTemplate(appMenu));
-    
+
     // Register the event listener to save token
     ipcMain.on('token', this.saveToken.bind(this));
   }
-  
+
   /**
    * Create the client window
    */
   createWindow() {
-    this.mainWindow = new BrowserWindow({width: 1280, height: 720});
+    this.mainWindow = new BrowserWindow({ width: 1280, height: 720 });
     this.mainWindow.loadURL('file://' + __dirname + '/index.html');
 
     // Open the DevTools.
@@ -177,13 +177,13 @@ class Main {
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
     });
-    
+
     // create the client menu
     Menu.setApplicationMenu(Menu.buildFromTemplate(appMenu));
-    
+
     app.mainWindow = this.mainWindow;
   }
-  
+
   /**
    * Register servers with the client
    * @param  {Object} server discord.js server resolvable
@@ -191,8 +191,8 @@ class Main {
   createServer(server) {
     // clone server to prevent modification of the discord.js servers cache
     let _server = Object.assign({}, server),
-        _channels = {};
-    
+      _channels = {};
+
     for (let channel of server.channels) {
       channel = channel[1];
       if (channel.type != 0) {
@@ -201,20 +201,20 @@ class Main {
 
       // ignore channels the user doesn't have permissions to read
       if (!channel.permissionsOf(this.bot.user.id).has("readMessages")) continue;
-      
+
       // clone channel to prevent modification of the eris channels cache
       _channels[channel.id] = Object.assign({}, channel);
-      
+
       // register an ipc listener for this channel
       ipcMain.on(channel.id, this.sendCommand.bind(this, _channels[channel.id]));
     }
-    
+
     _server.channels = _channels;
-    
+
     // send the server create event to the client
     this.mainWindow.webContents.send('server-create', _server);
   }
-  
+
   /**
    * Handle the serverDeleted event
    * @param  {Object} server discord.js server resolvable
@@ -223,7 +223,7 @@ class Main {
     // send the server delete event to the client
     this.mainWindow.webContents.send('server-delete', server);
   }
-  
+
   /**
    * Handle the channelCreated event
    * @param  {Object} channel discord.js channel resolvable
@@ -234,7 +234,7 @@ class Main {
     // register an ipc listener for this channel
     ipcMain.on(channel.id, this.sendCommand.bind(this, _channels[channel.id]));
   }
-  
+
   /**
    * Handle the channelDeleted event
    * @param  {Object} channel discord.js channel resolvable
@@ -242,7 +242,7 @@ class Main {
   deleteChannel(channel) {
     this.mainWindow.webContents.send('server-update', channel.server);
   }
-  
+
   /**
    * Utility method to format message objects
    * This should return an object with no circular references.
@@ -252,10 +252,10 @@ class Main {
    */
   formatMessage(message) {
     let msg = Object.assign({}, message);
-    
+
     // we don't need this reference
     delete msg.client;
-    
+
     // format the timestamp for display
     msg.timestamp = moment.unix(msg.timestamp / 1000).format('hh:mm:ss a');
 
@@ -272,7 +272,7 @@ class Main {
     } else {
       msg.author.roles = [];
     }
-    
+
     // we only need the channel id, and the object contains circular references
     msg.channel = msg.channel.id;
 
@@ -284,10 +284,10 @@ class Main {
       avatar: msg.author.avatar,
       roles: msg.author.roles
     };
-    
+
     return msg;
   }
-  
+
   /**
    * Activate a channel and get channel logs
    * @param  {Object} event   ipc event object
@@ -306,7 +306,7 @@ class Main {
         console.log(err);
       });
   }
-  
+
   /**
    * Bot message event handler
    * @param  {Object} msg discord.js message resolvable
@@ -314,7 +314,7 @@ class Main {
   onMessage(msg) {
     // ignore if client hasn't loaded yet
     if (!this.mainWindow) return;
-
+    
     // ignore messages messages not in the active channel
     if (this.activeChannel && this.activeChannel.id !== msg.channel.id) {
       return;
@@ -323,7 +323,7 @@ class Main {
     msg = this.formatMessage(msg);
     this.mainWindow.webContents.send(msg.channel, msg);
   }
-  
+
   /**
    * Send commands from the client to discord
    * @param  {Object} channel channel object
@@ -335,7 +335,7 @@ class Main {
     if (!cmd || !cmd.type) {
       return;
     }
-    
+
     switch (cmd.type) {
       // send message to discord
       case 'message':
